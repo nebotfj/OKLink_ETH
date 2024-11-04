@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKLink Multi-Explorer</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8 text-center">OKLink Multi-Network Explorer</h1>
+        
+        <div class="mb-8">
+            <input type="text" id="addressInput" placeholder="Enter wallet address" 
+                   class="w-full p-2 border rounded-lg mb-4">
+            <select id="networkSelect" class="w-full p-2 border rounded-lg">
+                <option value="">Select Network</option>
+            </select>
+        </div>
+
+        <div id="balanceInfo" class="bg-white p-4 rounded-lg shadow mb-8 hidden">
+            <h2 class="text-xl font-semibold mb-2">Balance</h2>
+            <p id="balanceText" class="text-lg"></p>
+        </div>
+
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">Transactions</h2>
+            <button id="exportBtn" class="bg-green-500 text-white px-4 py-2 rounded-lg hidden">
+                Export CSV
+            </button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full bg-white rounded-lg shadow">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="px-4 py-2">Hash</th>
+                        <th class="px-4 py-2">Method</th>
+                        <th class="px-4 py-2">From</th>
+                        <th class="px-4 py-2">To</th>
+                        <th class="px-4 py-2">In. Quantity</th>
+                        <th class="px-4 py-2">In. Asset</th>
+                        <th class="px-4 py-2">Out. Quantity</th>
+                        <th class="px-4 py-2">Out. Asset</th>
+                        <th class="px-4 py-2">Time</th>
+                    </tr>
+                </thead>
+                <tbody id="transactionsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let currentAddress = '';
+        let currentNetwork = '';
+
+        async function loadNetworks() {
+            const response = await fetch('/api/networks');
+            const networks = await response.json();
+            const select = document.getElementById('networkSelect');
+            
+            networks.forEach(network => {
+                const option = document.createElement('option');
+                option.value = network.id;
+                option.textContent = network.name;
+                select.appendChild(option);
+            });
+        }
+
+        async function loadBalance() {
+            if (!currentAddress || !currentNetwork) return;
+            
+            try {
+                const response = await fetch(`/api/balance/${currentNetwork}/${currentAddress}`);
+                const data = await response.json();
+                
+                document.getElementById('balanceInfo').classList.remove('hidden');
+                document.getElementById('balanceText').textContent = 
+                    `${data.balance} ${data.symbol}`;
+            } catch (error) {
+                console.error('Error loading balance:', error);
+            }
+        }
+
+        async function loadTransactions() {
+            if (!currentAddress || !currentNetwork) return;
+            
+            try {
+                const response = await fetch(`/api/transactions/${currentNetwork}/${currentAddress}`);
+                const data = await response.json();
+                
+                const tbody = document.getElementById('transactionsBody');
+                tbody.innerHTML = '';
+                
+                data.forEach(tx => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-4 py-2 border">${tx.hash}</td>
+                        <td class="px-4 py-2 border">${tx.method}</td>
+                        <td class="px-4 py-2 border">${tx.from}</td>
+                        <td class="px-4 py-2 border">${tx.to}</td>
+                        <td class="px-4 py-2 border">${tx.inQuantity}</td>
+                        <td class="px-4 py-2 border">${tx.inAsset}</td>
+                        <td class="px-4 py-2 border">${tx.outQuantity}</td>
+                        <td class="px-4 py-2 border">${tx.outAsset}</td>
+                        <td class="px-4 py-2 border">${new Date(tx.timestamp * 1000).toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                document.getElementById('exportBtn').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading transactions:', error);
+            }
+        }
+
+        document.getElementById('addressInput').addEventListener('change', (e) => {
+            currentAddress = e.target.value;
+            if (currentNetwork) {
+                loadBalance();
+                loadTransactions();
+            }
+        });
+
+        document.getElementById('networkSelect').addEventListener('change', (e) => {
+            currentNetwork = e.target.value;
+            if (currentAddress) {
+                loadBalance();
+                loadTransactions();
+            }
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', async () => {
+            if (!currentAddress || !currentNetwork) return;
+            
+            window.location.href = `/api/export/${currentNetwork}/${currentAddress}`;
+        });
+
+        // Initialize
+        loadNetworks();
+    </script>
+</body>
+</html>
